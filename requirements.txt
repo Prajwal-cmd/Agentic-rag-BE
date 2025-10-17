@@ -42,5 +42,5 @@ pylatexenc>=2.10        # LaTeX math parsing
 pandas>=2.0.0           # Table manipulation
 openpyxl>=3.1.0         # Excel export
 # NEW: For improved document retrieval
-sentence-transformers==2.2.2  # For cross-encoder reranking
+#sentence-transformers==2.2.2  # For cross-encoder reranking
 rank-bm25==0.2.2  # For BM25 lexical search
