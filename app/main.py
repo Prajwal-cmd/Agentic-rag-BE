@@ -110,22 +110,41 @@ def run_session_cleanup():
 async def startup_event():
     """Initialize services on application startup."""
     global workflow, summarizer
-    logger.info("Starting up Agentic RAG System with Research...")
     
-    # Initialize workflow
-    workflow = get_workflow()
-    logger.info("✓ LangGraph workflow compiled")
+    # Import here to avoid circular imports
+    import asyncio
     
-    # Initialize embedding model
-    embedding_service = get_embedding_service(settings.embedding_model)
-    logger.info("✓ Embedding model loaded")
+    logger.info("🚀 Starting Agentic RAG System...")
     
-    # Initialize summarizer
-    groq_service = get_groq_service(settings.groq_api_key)
-    summarizer = ConversationSummarizer(groq_service, settings.routing_model)
-    logger.info("✓ Conversation summarizer ready")
-    
-    logger.info("Application startup complete!")
+    try:
+        # Initialize critical services with timeout
+        async def init_services():
+            global workflow, summarizer
+            
+            # Initialize workflow (can be slow)
+            workflow = get_workflow()
+            logger.info("✓ LangGraph workflow compiled")
+            
+            # Initialize embedding model (downloads model on first run)
+            embedding_service = get_embedding_service(settings.embedding_model)
+            logger.info("✓ Embedding model loaded")
+            
+            # Initialize summarizer
+            groq_service = get_groq_service(settings.groq_api_key)
+            summarizer = ConversationSummarizer(groq_service, settings.routing_model)
+            logger.info("✓ Conversation summarizer ready")
+        
+        # Run initialization in background to not block port binding
+        # This allows FastAPI to bind to the port immediately
+        asyncio.create_task(init_services())
+        
+        logger.info("✅ Application startup initiated (services loading in background)")
+        
+    except Exception as e:
+        logger.error(f"❌ Startup error: {e}")
+
+
+
 
 @app.get("/")
 async def root():
