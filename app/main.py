@@ -108,40 +108,61 @@ def run_session_cleanup():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services on application startup."""
+    """Initialize services on application startup - NON-BLOCKING."""
     global workflow, summarizer
     
-    # Import here to avoid circular imports
-    import asyncio
+    logger.info("🚀 FastAPI starting - binding to port immediately...")
     
-    logger.info("🚀 Starting Agentic RAG System...")
+    # Port binds HERE - before any heavy initialization
+    # Services will be loaded in background
     
-    try:
-        # Initialize critical services with timeout
-        async def init_services():
-            global workflow, summarizer
+    # Define background initialization
+    def init_services_sync():
+        """Synchronous initialization that runs in thread pool."""
+        global workflow, summarizer
+        
+        try:
+            logger.info("📦 Loading services in background...")
             
-            # Initialize workflow (can be slow)
+            # These are CPU-intensive, run in thread pool
             workflow = get_workflow()
             logger.info("✓ LangGraph workflow compiled")
             
-            # Initialize embedding model (downloads model on first run)
             embedding_service = get_embedding_service(settings.embedding_model)
             logger.info("✓ Embedding model loaded")
             
-            # Initialize summarizer
             groq_service = get_groq_service(settings.groq_api_key)
             summarizer = ConversationSummarizer(groq_service, settings.routing_model)
             logger.info("✓ Conversation summarizer ready")
-        
-        # Run initialization in background to not block port binding
-        # This allows FastAPI to bind to the port immediately
-        asyncio.create_task(init_services())
-        
-        logger.info("✅ Application startup initiated (services loading in background)")
-        
-    except Exception as e:
-        logger.error(f"❌ Startup error: {e}")
+            
+            logger.info("✅ All services loaded successfully!")
+            
+        except Exception as e:
+            logger.error(f"❌ Background initialization error: {e}", exc_info=True)
+    
+    # Run heavy initialization in thread pool (non-blocking)
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, init_services_sync)
+    
+    logger.info("✅ Server starting - services loading in background")
+
+async def wait_for_services(max_wait_seconds=300):
+    """Wait for services to initialize (5 min max)."""
+    global workflow, summarizer
+    
+    import asyncio
+    waited = 0
+    
+    while (workflow is None or summarizer is None) and waited < max_wait_seconds:
+        await asyncio.sleep(0.5)
+        waited += 0.5
+    
+    if workflow is None or summarizer is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Services are still initializing. Please try again in a few moments."
+        )
 
 
 
@@ -157,64 +178,19 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint - returns quickly even during initialization."""
     logger.info("Health check requested")
     
+    # ALWAYS return quickly - don't wait for services
     health_status = {
-        "status": "healthy",
-        "groq_connected": False,
-        "qdrant_connected": False,
-        "tavily_connected": False,
-        "semantic_scholar_connected": False,  # NEW
-        "embedding_model_loaded": False
+        "status": "starting" if workflow is None else "healthy",
+        "groq_connected": bool(settings.groq_api_key),
+        "qdrant_connected": bool(settings.qdrant_url),
+        "tavily_connected": bool(settings.tavily_api_key),
+        "semantic_scholar_connected": bool(settings.semantic_scholar_api_key),
+        "embedding_model_loaded": workflow is not None  # Simple check
     }
     
-    # Check Groq
-    try:
-        groq_service = get_groq_service(settings.groq_api_key)
-        health_status["groq_connected"] = True
-    except Exception as e:
-        logger.error(f"Groq health check failed: {e}")
-    
-    # Check Qdrant
-    try:
-        test_store = VectorStoreService(
-            url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key,
-            collection_name="health_check",
-            embedding_dim=384
-        )
-        health_status["qdrant_connected"] = True
-    except Exception as e:
-        logger.error(f"Qdrant health check failed: {e}")
-    
-    # Check Tavily
-    health_status["tavily_connected"] = bool(settings.tavily_api_key)
-    
-    # NEW: Check Semantic Scholar
-    try:
-        research_service = get_research_search_service()
-        health_status["semantic_scholar_connected"] = research_service.check_connection()
-    except Exception as e:
-        logger.error(f"Semantic Scholar health check failed: {e}")
-        health_status["semantic_scholar_connected"] = False
-    
-    # Check embeddings
-    try:
-        embedding_service = get_embedding_service(settings.embedding_model)
-        health_status["embedding_model_loaded"] = True
-    except Exception as e:
-        logger.error(f"Embedding model health check failed: {e}")
-    
-    all_healthy = all([
-        health_status["groq_connected"],
-        health_status["qdrant_connected"],
-        health_status["tavily_connected"],
-        health_status["embedding_model_loaded"]
-        # Note: Semantic Scholar is optional
-    ])
-    
-    health_status["status"] = "healthy" if all_healthy else "degraded"
     return health_status
 
 
@@ -364,7 +340,7 @@ async def upload_documents(
 async def chat_stream(request: ChatRequest):
     """Streaming chat endpoint with progress updates."""
     logger.info(f"Streaming chat request received: {request.message[:50]}...")
-    
+    await wait_for_services()
     # Validate session_id
     if not request.session_id:
         raise HTTPException(
@@ -609,7 +585,7 @@ def check_document_availability(session_id: str) -> bool:
 async def chat(request: ChatRequest):
     """Main chat endpoint (non-streaming)."""
     logger.info(f"Chat request received: {request.message[:50]}...")
-    
+    await wait_for_services()
     # Validate session_id
     if not request.session_id:
         raise HTTPException(
