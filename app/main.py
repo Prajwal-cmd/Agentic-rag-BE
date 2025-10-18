@@ -53,7 +53,6 @@ async def lifespan(app: FastAPI):
 async def initialize_services_background():
     """Background task for service initialization."""
     global workflow, summarizer
-    
     try:
         logger.info("📦 Loading services in background...")
         
@@ -64,18 +63,16 @@ async def initialize_services_background():
         workflow = await loop.run_in_executor(None, get_workflow)
         logger.info("✓ LangGraph workflow compiled")
         
-        # Load embedding service
-        embedding_service = await loop.run_in_executor(
-            None, get_embedding_service, settings.embedding_model
-        )
-        logger.info("✓ Embedding model loaded")
-        
         # Load summarizer
         groq_service = get_groq_service(settings.groq_api_key)
         summarizer = ConversationSummarizer(groq_service, settings.routing_model)
         logger.info("✓ Conversation summarizer ready")
         
-        logger.info("✅ All services loaded successfully!")
+        # DON'T load embedding service here - it's too slow!
+        # It will be lazy-loaded on first /upload or first retrieval
+        logger.info("✓ Embedding service will load on first use (lazy loading)")
+        
+        logger.info("✅ Critical services loaded successfully!")
         
     except Exception as e:
         logger.error(f"❌ Background initialization error: {e}", exc_info=True)
