@@ -24,16 +24,67 @@ from .services.table_extractor import get_table_extractor
 from .services.math_handler import get_math_handler
 from .services.fast_contextual_embedder import get_fast_contextual_embedder
 from .services.research_search_fallback import get_research_search_service
-
+import asyncio
+from contextlib import asynccontextmanager
 
 
 
 logger = setup_logger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager - non-blocking initialization."""
+    global workflow, summarizer
+    
+    logger.info("🚀 FastAPI starting - port binding immediately...")
+    
+    # Port binds BEFORE this context manager completes
+    # Schedule background initialization WITHOUT awaiting
+    asyncio.create_task(initialize_services_background())
+    
+    logger.info("✅ Server ready - services loading in background")
+    
+    yield  # Application runs here
+    
+    # Cleanup on shutdown
+    logger.info("🛑 Shutting down...")
+
+async def initialize_services_background():
+    """Background task for service initialization."""
+    global workflow, summarizer
+    
+    try:
+        logger.info("📦 Loading services in background...")
+        
+        # Run CPU-intensive work in thread pool
+        loop = asyncio.get_event_loop()
+        
+        # Load workflow
+        workflow = await loop.run_in_executor(None, get_workflow)
+        logger.info("✓ LangGraph workflow compiled")
+        
+        # Load embedding service
+        embedding_service = await loop.run_in_executor(
+            None, get_embedding_service, settings.embedding_model
+        )
+        logger.info("✓ Embedding model loaded")
+        
+        # Load summarizer
+        groq_service = get_groq_service(settings.groq_api_key)
+        summarizer = ConversationSummarizer(groq_service, settings.routing_model)
+        logger.info("✓ Conversation summarizer ready")
+        
+        logger.info("✅ All services loaded successfully!")
+        
+    except Exception as e:
+        logger.error(f"❌ Background initialization error: {e}", exc_info=True)
+
 app = FastAPI(
-    title="Agentic RAG System with Research",  # UPDATED
-    description="Adaptive Corrective RAG with LangGraph + Academic Paper Search",  # UPDATED
-    version="2.0.0"  # UPDATED
+    title="Agentic RAG System with Research",
+    description="Adaptive Corrective RAG with LangGraph + Academic Paper Search",
+    version="2.0.0",
+    lifespan=lifespan  # Add this parameter
 )
 
 # CORS configuration
@@ -106,46 +157,24 @@ def run_session_cleanup():
         return {"error": str(e)}
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on application startup - NON-BLOCKING."""
+
+
+async def ensure_services_ready(timeout: int = 300):
+    """Wait for critical services to be ready (5 min max)."""
     global workflow, summarizer
     
-    logger.info("🚀 FastAPI starting - binding to port immediately...")
+    start_time = asyncio.get_event_loop().time()
     
-    # Port binds HERE - before any heavy initialization
-    # Services will be loaded in background
+    while (workflow is None or summarizer is None):
+        if asyncio.get_event_loop().time() - start_time > timeout:
+            raise HTTPException(
+                status_code=503,
+                detail="Services are still initializing. Please try again in a few moments."
+            )
+        await asyncio.sleep(0.5)
     
-    # Define background initialization
-    def init_services_sync():
-        """Synchronous initialization that runs in thread pool."""
-        global workflow, summarizer
-        
-        try:
-            logger.info("📦 Loading services in background...")
-            
-            # These are CPU-intensive, run in thread pool
-            workflow = get_workflow()
-            logger.info("✓ LangGraph workflow compiled")
-            
-            embedding_service = get_embedding_service(settings.embedding_model)
-            logger.info("✓ Embedding model loaded")
-            
-            groq_service = get_groq_service(settings.groq_api_key)
-            summarizer = ConversationSummarizer(groq_service, settings.routing_model)
-            logger.info("✓ Conversation summarizer ready")
-            
-            logger.info("✅ All services loaded successfully!")
-            
-        except Exception as e:
-            logger.error(f"❌ Background initialization error: {e}", exc_info=True)
-    
-    # Run heavy initialization in thread pool (non-blocking)
-    import asyncio
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, init_services_sync)
-    
-    logger.info("✅ Server starting - services loading in background")
+    return True
+
 
 async def wait_for_services(max_wait_seconds=300):
     """Wait for services to initialize (5 min max)."""
@@ -178,20 +207,22 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint - returns quickly even during initialization."""
+    """Health check endpoint - returns immediately."""
     logger.info("Health check requested")
     
-    # ALWAYS return quickly - don't wait for services
-    health_status = {
-        "status": "starting" if workflow is None else "healthy",
+    # Calculate initialization progress
+    services_ready = workflow is not None and summarizer is not None
+    
+    return {
+        "status": "healthy" if services_ready else "initializing",
+        "services_ready": services_ready,
         "groq_connected": bool(settings.groq_api_key),
         "qdrant_connected": bool(settings.qdrant_url),
         "tavily_connected": bool(settings.tavily_api_key),
         "semantic_scholar_connected": bool(settings.semantic_scholar_api_key),
-        "embedding_model_loaded": workflow is not None  # Simple check
+        "workflow_loaded": workflow is not None,
+        "summarizer_loaded": summarizer is not None
     }
-    
-    return health_status
 
 
 @app.post("/upload", response_model=UploadResponse)
@@ -340,7 +371,7 @@ async def upload_documents(
 async def chat_stream(request: ChatRequest):
     """Streaming chat endpoint with progress updates."""
     logger.info(f"Streaming chat request received: {request.message[:50]}...")
-    await wait_for_services()
+    await ensure_services_ready()
     # Validate session_id
     if not request.session_id:
         raise HTTPException(
@@ -585,7 +616,7 @@ def check_document_availability(session_id: str) -> bool:
 async def chat(request: ChatRequest):
     """Main chat endpoint (non-streaming)."""
     logger.info(f"Chat request received: {request.message[:50]}...")
-    await wait_for_services()
+    await ensure_services_ready()
     # Validate session_id
     if not request.session_id:
         raise HTTPException(

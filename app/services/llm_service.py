@@ -13,6 +13,7 @@ import time
 import random
 import json
 from functools import wraps
+from functools import lru_cache
 
 from ..utils.logger import setup_logger
 
@@ -234,7 +235,7 @@ IMPORTANT: Return ONLY the JSON object, no other text."""),
 
 # Singleton instance
 _groq_service: Optional[GroqService] = None
-
+@lru_cache(maxsize=1)
 def get_groq_service(api_key: str) -> GroqService:
     """Get or create Groq service singleton."""
     global _groq_service

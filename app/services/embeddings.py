@@ -8,6 +8,8 @@ from sentence_transformers import SentenceTransformer
 from typing import List
 import numpy as np
 from ..utils.logger import setup_logger
+from functools import lru_cache
+
 
 logger = setup_logger(__name__)
 
@@ -61,7 +63,7 @@ class EmbeddingService:
 
 # Global instance
 embedding_service = None
-
+@lru_cache(maxsize=1)
 def get_embedding_service(model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> EmbeddingService:
     """
     Get or create global embedding service instance.
