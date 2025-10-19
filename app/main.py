@@ -24,64 +24,16 @@ from .services.table_extractor import get_table_extractor
 from .services.math_handler import get_math_handler
 from .services.fast_contextual_embedder import get_fast_contextual_embedder
 from .services.research_search_fallback import get_research_search_service
-import asyncio
-from contextlib import asynccontextmanager
+
 
 
 
 logger = setup_logger(__name__)
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Lifespan context manager - non-blocking initialization."""
-    global workflow, summarizer
-    
-    logger.info("🚀 FastAPI starting - port binding immediately...")
-    
-    # Port binds BEFORE this context manager completes
-    # Schedule background initialization WITHOUT awaiting
-    asyncio.create_task(initialize_services_background())
-    
-    logger.info("✅ Server ready - services loading in background")
-    
-    yield  # Application runs here
-    
-    # Cleanup on shutdown
-    logger.info("🛑 Shutting down...")
-
-async def initialize_services_background():
-    """Background task for service initialization."""
-    global workflow, summarizer
-    try:
-        logger.info("📦 Loading services in background...")
-        
-        # Run CPU-intensive work in thread pool
-        loop = asyncio.get_event_loop()
-        
-        # Load workflow
-        workflow = await loop.run_in_executor(None, get_workflow)
-        logger.info("✓ LangGraph workflow compiled")
-        
-        # Load summarizer
-        groq_service = get_groq_service(settings.groq_api_key)
-        summarizer = ConversationSummarizer(groq_service, settings.routing_model)
-        logger.info("✓ Conversation summarizer ready")
-        
-        # DON'T load embedding service here - it's too slow!
-        # It will be lazy-loaded on first /upload or first retrieval
-        logger.info("✓ Embedding service will load on first use (lazy loading)")
-        
-        logger.info("✅ Critical services loaded successfully!")
-        
-    except Exception as e:
-        logger.error(f"❌ Background initialization error: {e}", exc_info=True)
-
 app = FastAPI(
-    title="Agentic RAG System with Research",
-    description="Adaptive Corrective RAG with LangGraph + Academic Paper Search",
-    version="2.0.0",
-    lifespan=lifespan  # Add this parameter
+    title="Agentic RAG System with Research",  # UPDATED
+    description="Adaptive Corrective RAG with LangGraph + Academic Paper Search",  # UPDATED
+    version="2.0.0"  # UPDATED
 )
 
 # CORS configuration
@@ -96,6 +48,7 @@ app.add_middleware(
 # Global services
 workflow = None
 summarizer = None
+embedding_service = None
 
 # NEW: Track last cleanup time to avoid frequent cleanups
 last_cleanup_time = None
@@ -136,7 +89,7 @@ def run_session_cleanup():
             url=settings.qdrant_url,
             api_key=settings.qdrant_api_key,
             collection_name="temp_cleanup",  # Dummy name, won't be created
-            embedding_dim=384,
+            embedding_dim= embedding_service.get_dimension(),
             auto_create=False  # Don't create collection
         )
         
@@ -154,44 +107,26 @@ def run_session_cleanup():
         return {"error": str(e)}
 
 
-
-
-async def ensure_services_ready(timeout: int = 300):
-    """Wait for critical services to be ready (5 min max)."""
-    global workflow, summarizer
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on application startup."""
+    global workflow, summarizer ,embedding_service  
+    logger.info("Starting up Agentic RAG System with Research...")
     
-    start_time = asyncio.get_event_loop().time()
+    # Initialize workflow
+    workflow = get_workflow()
+    logger.info("✓ LangGraph workflow compiled")
     
-    while (workflow is None or summarizer is None):
-        if asyncio.get_event_loop().time() - start_time > timeout:
-            raise HTTPException(
-                status_code=503,
-                detail="Services are still initializing. Please try again in a few moments."
-            )
-        await asyncio.sleep(0.5)
+    # Initialize embedding model
+    embedding_service = get_embedding_service(settings.embedding_model)
+    logger.info("✓ Embedding model loaded")
     
-    return True
-
-
-async def wait_for_services(max_wait_seconds=300):
-    """Wait for services to initialize (5 min max)."""
-    global workflow, summarizer
+    # Initialize summarizer
+    groq_service = get_groq_service(settings.groq_api_key)
+    summarizer = ConversationSummarizer(groq_service, settings.routing_model)
+    logger.info("✓ Conversation summarizer ready")
     
-    import asyncio
-    waited = 0
-    
-    while (workflow is None or summarizer is None) and waited < max_wait_seconds:
-        await asyncio.sleep(0.5)
-        waited += 0.5
-    
-    if workflow is None or summarizer is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Services are still initializing. Please try again in a few moments."
-        )
-
-
-
+    logger.info("Application startup complete!")
 
 @app.get("/")
 async def root():
@@ -204,22 +139,65 @@ async def root():
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint - returns immediately."""
+    """Health check endpoint."""
     logger.info("Health check requested")
     
-    # Calculate initialization progress
-    services_ready = workflow is not None and summarizer is not None
-    
-    return {
-        "status": "healthy" if services_ready else "initializing",
-        "services_ready": services_ready,
-        "groq_connected": bool(settings.groq_api_key),
-        "qdrant_connected": bool(settings.qdrant_url),
-        "tavily_connected": bool(settings.tavily_api_key),
-        "semantic_scholar_connected": bool(settings.semantic_scholar_api_key),
-        "workflow_loaded": workflow is not None,
-        "summarizer_loaded": summarizer is not None
+    health_status = {
+        "status": "healthy",
+        "groq_connected": False,
+        "qdrant_connected": False,
+        "tavily_connected": False,
+        "semantic_scholar_connected": False,  # NEW
+        "embedding_model_loaded": False
     }
+    
+    # Check Groq
+    try:
+        groq_service = get_groq_service(settings.groq_api_key)
+        health_status["groq_connected"] = True
+    except Exception as e:
+        logger.error(f"Groq health check failed: {e}")
+    
+    # Check Qdrant
+    try:
+        test_store = VectorStoreService(
+            url=settings.qdrant_url,
+            api_key=settings.qdrant_api_key,
+            collection_name="health_check",
+            embedding_dim=_get_embedding_dimension()
+        )
+        health_status["qdrant_connected"] = True
+    except Exception as e:
+        logger.error(f"Qdrant health check failed: {e}")
+    
+    # Check Tavily
+    health_status["tavily_connected"] = bool(settings.tavily_api_key)
+    
+    # NEW: Check Semantic Scholar
+    try:
+        research_service = get_research_search_service()
+        health_status["semantic_scholar_connected"] = research_service.check_connection()
+    except Exception as e:
+        logger.error(f"Semantic Scholar health check failed: {e}")
+        health_status["semantic_scholar_connected"] = False
+    
+    # Check embeddings
+    try:
+        embedding_service = get_embedding_service(settings.embedding_model)
+        health_status["embedding_model_loaded"] = True
+    except Exception as e:
+        logger.error(f"Embedding model health check failed: {e}")
+    
+    all_healthy = all([
+        health_status["groq_connected"],
+        health_status["qdrant_connected"],
+        health_status["tavily_connected"],
+        health_status["embedding_model_loaded"]
+        # Note: Semantic Scholar is optional
+    ])
+    
+    health_status["status"] = "healthy" if all_healthy else "degraded"
+    return health_status
 
 
 @app.post("/upload", response_model=UploadResponse)
@@ -368,7 +346,7 @@ async def upload_documents(
 async def chat_stream(request: ChatRequest):
     """Streaming chat endpoint with progress updates."""
     logger.info(f"Streaming chat request received: {request.message[:50]}...")
-    await ensure_services_ready()
+    
     # Validate session_id
     if not request.session_id:
         raise HTTPException(
@@ -613,7 +591,7 @@ def check_document_availability(session_id: str) -> bool:
 async def chat(request: ChatRequest):
     """Main chat endpoint (non-streaming)."""
     logger.info(f"Chat request received: {request.message[:50]}...")
-    await ensure_services_ready()
+    
     # Validate session_id
     if not request.session_id:
         raise HTTPException(
@@ -733,7 +711,7 @@ async def delete_session(session_id: str):
             url=settings.qdrant_url,
             api_key=settings.qdrant_api_key,
             collection_name=f"session_{session_id}",
-            embedding_dim=384
+            embedding_dim=_get_embedding_dimension()
         )
         vectorstore.delete_collection()
         return {"message": f"Session {session_id} deleted successfully"}
@@ -1015,6 +993,4 @@ async def extract_math(
 
 if __name__ == "__main__":
     import uvicorn
-    import os
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

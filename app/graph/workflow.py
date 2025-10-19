@@ -27,7 +27,6 @@ from .edges import (
     clarification_edge
 )
 from ..utils.logger import setup_logger
-from functools import lru_cache
 
 logger = setup_logger(__name__)
 
@@ -150,7 +149,6 @@ def compile_workflow() -> StateGraph:
 
 
 # Factory function
-@lru_cache(maxsize=1)
 def get_workflow():
     """Get compiled workflow instance."""
     return compile_workflow()

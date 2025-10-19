@@ -39,20 +39,19 @@ class DocumentReranker:
         self._load_model()
     
     def _load_model(self):
-        """Lazy load reranking model on first use"""
-        if self.model is not None:
+        """Lazy load reranking model."""
+        if not settings.enable_reranking:
+            logger.info("Reranking disabled in config")
             return
         
         try:
-            # Use lighter reranker for 512MB deployment
-            lighter_model = "cross-encoder/ms-marco-MiniLM-L-2-v2"  # 31MB vs 80MB
-            logger.info(f"Loading lightweight reranking model: {lighter_model}")
-            self.model = CrossEncoder(lighter_model)
-            logger.info("✅ Lightweight reranker loaded (~31MB memory)")
+            logger.info(f"Loading reranking model: {settings.reranking_model}")
+            self.model = CrossEncoder(settings.reranking_model)
+            logger.info("✅ Reranking model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load reranking model: {e}")
-            raise
-
+            logger.warning("Reranking will be disabled")
+            self.model = None
     
     def rerank_documents(
         self,
@@ -148,17 +147,8 @@ class DocumentReranker:
 _reranker = None
 
 def get_reranker() -> DocumentReranker:
-    """Get reranker - API or local based on config"""
+    """Get or create global reranker instance."""
     global _reranker
-    
     if _reranker is None:
-        # Check if using API reranking
-        if hasattr(settings, 'use_api_embeddings') and settings.use_api_embeddings:
-            from .reranker_api import get_api_reranker
-            logger.info("🌐 Using API-based reranker (zero local memory)")
-            _reranker = get_api_reranker()
-        else:
-            logger.info("💻 Using local reranker")
-            _reranker = DocumentReranker()
-    
+        _reranker = DocumentReranker()
     return _reranker
