@@ -1,26 +1,31 @@
+
+
+
 # Core Framework
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
 python-multipart==0.0.9
 
-# LangChain & LangGraph
-langchain
-langchain-community
-langchain-core
-langgraph
-langchain-groq
+# LangChain & LangGraph - Industry-Standard Orchestration
+langchain #==0.3.0
+langchain-community #==0.3.0
+langchain-core #==0.3.0
+langgraph #==0.2.0
+langchain-groq #==0.2.0
 
-# Vector Store
+# Vector Store - Production-Quality Free Tier
 qdrant-client==1.11.0
 
-# API Client for Embeddings (replaces local models)
-requests==2.31.0
+# Local Embeddings - Zero API Cost
+# ⚡ CRITICAL: CPU-ONLY PyTorch for Render Free Tier
+# This prevents downloading 3GB+ of unnecessary CUDA libraries
+# --extra-index-url https://download.pytorch.org/whl/cpu
+# torch==2.5.1+cpu
+# sentence-transformers==3.0.0
+requests==2.31.0  # For Jina API calls
 
-# Machine Learning Utils (Python 3.12 compatible)
-scikit-learn>=1.6.0  # ✅ First version supporting Python 3.12
-numpy>=2.0.0  # ✅ Python 3.12 compatible
 
-# Web Search
+# Web Search - AI-Optimized Search
 tavily-python==0.5.0
 
 # Document Processing
@@ -32,73 +37,21 @@ beautifulsoup4==4.12.3
 python-dotenv==1.0.0
 pydantic==2.9.0
 pydantic-settings==2.5.0
-tenacity==8.2.3
 
-# Research APIs
+tenacity==8.2.3  # For retry decorators
+
 duckduckgo-search>=6.0.0
 arxiv>=2.1.0
 
-# Table extraction
-pdfplumber>=0.10.0
-openpyxl>=3.1.2
-bibtexparser==1.4.1  # ✅ Stable version (not 2.0.0 beta)
-
-# Use pdfplumber for table extraction instead
-
-
-
-
-
-# # Core Framework
-# fastapi==0.115.0
-# uvicorn[standard]==0.30.0
-# python-multipart==0.0.9
-
-# # LangChain & LangGraph - Industry-Standard Orchestration
-# langchain #==0.3.0
-# langchain-community #==0.3.0
-# langchain-core #==0.3.0
-# langgraph #==0.2.0
-# langchain-groq #==0.2.0
-
-# # Vector Store - Production-Quality Free Tier
-# qdrant-client==1.11.0
-
-# # Local Embeddings - Zero API Cost
-# # ⚡ CRITICAL: CPU-ONLY PyTorch for Render Free Tier
-# # This prevents downloading 3GB+ of unnecessary CUDA libraries
-# # --extra-index-url https://download.pytorch.org/whl/cpu
-# # torch==2.5.1+cpu
-# # sentence-transformers==3.0.0
-# requests==2.31.0  # For Jina API calls
-
-
-# # Web Search - AI-Optimized Search
-# tavily-python==0.5.0
-
-# # Document Processing
-# PyPDF2==3.0.1
-# python-docx==1.1.0
-# beautifulsoup4==4.12.3
-
-# # Utilities
-# python-dotenv==1.0.0
-# pydantic==2.9.0
-# pydantic-settings==2.5.0
-
-# tenacity==8.2.3  # For retry decorators
-
-# duckduckgo-search>=6.0.0
-# arxiv>=2.1.0
-
-# # Add to requirements.txt
-# camelot-py[cv]>=0.11.0  # Table extraction (CV = computer vision)
-# pdfplumber>=0.10.0      # Fallback table extractor
-# bibtexparser>=1.4.0     # Citation export
-# pylatexenc>=2.10        # LaTeX math parsing
-# pandas>=2.0.0           # Table manipulation
-# openpyxl>=3.1.0         # Excel export
-# # NEW: For improved document retrieval
-# #sentence-transformers==2.2.2  # For cross-encoder reranking
-# rank-bm25==0.2.2  # For BM25 lexical search
-# requests
+# Add to requirements.txt
+#camelot-py[cv]>=0.11.0  # Table extraction (CV = computer vision)
+pdfplumber>=0.10.0      # Fallback table extractor
+bibtexparser>=1.4.0     # Citation export
+pylatexenc>=2.10        # LaTeX math parsing
+pandas>=2.0.0           # Table manipulation
+openpyxl>=3.1.0         # Excel export
+# NEW: For improved document retrieval
+#sentence-transformers==2.2.2  # For cross-encoder reranking
+rank-bm25==0.2.2  # For BM25 lexical search
+scikit-learn>=1.6.0
+numpy>=2.0.0
