@@ -6,18 +6,23 @@ Source: EMNLP 2024, Anthropic Contextual Retrieval
 
 Reranks retrieved documents using cross-encoder models for improved precision.
 Research shows 30-40% improvement in retrieval accuracy.
+
+NOTE: Reranking is OPTIONAL and disabled by default for memory optimization.
 """
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, TYPE_CHECKING
 from langchain_core.documents import Document
-from sentence_transformers import CrossEncoder
 from functools import lru_cache
 import numpy as np
+
 from ..config import settings
 from ..utils.logger import setup_logger
 
-logger = setup_logger(__name__)
+# Conditional import - only import if type checking (for IDE support)
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
 
+logger = setup_logger(__name__)
 
 class DocumentReranker:
     """
@@ -32,6 +37,9 @@ class DocumentReranker:
     - Size: 80MB
     - Speed: ~10ms per query-document pair
     - Accuracy: Better than bi-encoders for relevance
+    
+    NOTE: When enable_reranking=False, this class becomes a no-op
+    and doesn't load any models or dependencies.
     """
     
     def __init__(self):
@@ -39,18 +47,26 @@ class DocumentReranker:
         self._load_model()
     
     def _load_model(self):
-        """Lazy load reranking model."""
+        """Lazy load reranking model only if enabled."""
         if not settings.enable_reranking:
-            logger.info("Reranking disabled in config")
+            logger.info("⏭️ Reranking DISABLED (memory optimization mode)")
             return
         
         try:
+            # Import only when needed
+            from sentence_transformers import CrossEncoder
+            
             logger.info(f"Loading reranking model: {settings.reranking_model}")
             self.model = CrossEncoder(settings.reranking_model)
             logger.info("✅ Reranking model loaded successfully")
+            
+        except ImportError as e:
+            logger.error(f"sentence_transformers not installed: {e}")
+            logger.warning("⏭️ Reranking will be disabled")
+            self.model = None
         except Exception as e:
             logger.error(f"Failed to load reranking model: {e}")
-            logger.warning("Reranking will be disabled")
+            logger.warning("⏭️ Reranking will be disabled")
             self.model = None
     
     def rerank_documents(
@@ -66,7 +82,7 @@ class DocumentReranker:
             query: User query
             documents: Retrieved documents to rerank
             top_k: Number of documents to return (default: from config)
-            
+        
         Returns:
             Reranked documents sorted by relevance score
         """
