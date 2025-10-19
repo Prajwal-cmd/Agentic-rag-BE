@@ -1223,7 +1223,8 @@ def route_question(state: Dict[str, Any]) -> Dict[str, Any]:
             embedding_dim=embedding_service.get_dimension(),
             auto_create=False
         )
-        doc_count = vector_store.count()
+        collection_info = vector_store.get_collection_info()
+        doc_count = collection_info.get('points_count', 0)
         has_documents = doc_count > 0
         logger.info(f"Document check: session_{session_id} has {doc_count} documents")
     except Exception as e:
