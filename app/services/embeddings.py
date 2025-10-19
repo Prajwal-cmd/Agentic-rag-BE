@@ -9,6 +9,8 @@ from typing import List
 import numpy as np
 from ..utils.logger import setup_logger
 from functools import lru_cache
+from ..config import settings  # ← ADD THIS LINE
+
 
 
 logger = setup_logger(__name__)
@@ -73,12 +75,21 @@ class EmbeddingService:
 # Global instance
 embedding_service = None
 @lru_cache(maxsize=1)
-def get_embedding_service(model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> EmbeddingService:
+
+def get_embedding_service(model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
     """
-    Get or create global embedding service instance.
-    Singleton pattern to avoid reloading model.
+    Get embedding service - API or local based on config
     """
     global embedding_service
+    
     if embedding_service is None:
-        embedding_service = EmbeddingService(model_name)
+        # Check if using API embeddings
+        if hasattr(settings, 'use_api_embeddings') and settings.use_api_embeddings:
+            from .embeddings_api import get_api_embedding_service
+            logger.info("🌐 Using API-based embeddings (zero local memory)")
+            embedding_service = get_api_embedding_service()
+        else:
+            logger.info("💻 Using local embeddings")
+            embedding_service = EmbeddingService(model_name)
+    
     return embedding_service

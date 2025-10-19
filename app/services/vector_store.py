@@ -111,7 +111,7 @@ class VectorStoreService:
         url: str, 
         api_key: str, 
         collection_name: str, 
-        embedding_dim: int = 384,
+        embedding_dim: int = 1024 ,
         auto_create: bool = True  # NEW: Control collection creation
     ):
         """

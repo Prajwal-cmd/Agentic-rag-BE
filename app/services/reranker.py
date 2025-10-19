@@ -148,8 +148,17 @@ class DocumentReranker:
 _reranker = None
 
 def get_reranker() -> DocumentReranker:
-    """Get or create global reranker instance."""
+    """Get reranker - API or local based on config"""
     global _reranker
+    
     if _reranker is None:
-        _reranker = DocumentReranker()
+        # Check if using API reranking
+        if hasattr(settings, 'use_api_embeddings') and settings.use_api_embeddings:
+            from .reranker_api import get_api_reranker
+            logger.info("🌐 Using API-based reranker (zero local memory)")
+            _reranker = get_api_reranker()
+        else:
+            logger.info("💻 Using local reranker")
+            _reranker = DocumentReranker()
+    
     return _reranker

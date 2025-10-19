@@ -6,6 +6,10 @@ Source: Pydantic Settings pattern - Industry standard for environment management
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+import os
+from pydantic_settings import BaseSettings
+from pydantic import Field
+
 
 class Settings(BaseSettings):
     """
@@ -67,6 +71,12 @@ class Settings(BaseSettings):
     # NEW: Reranking settings
     enable_reranking: bool = True  # Enable reranking step
     reranking_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"  # Lightweight reranker
+    # API-based embeddings (replaces local models)
+    use_api_embeddings: bool = True  # Toggle between local and API
+    jina_api_key: str = os.getenv("JINA_API_KEY", "")
+    jina_embedding_model: str = "jina-embeddings-v3"  # or jina-embeddings-v2-base-en
+    jina_base_url: str = "https://api.jina.ai/v1"
+
     
     # NEW: Query rewriting
     enable_query_rewriting: bool = True  # Rewrite vague document queries
@@ -109,5 +119,7 @@ class Settings(BaseSettings):
     semantic_confidence_threshold: float = 0.75  # Minimum confidence for Tier 2
     enable_rag_aware_routing: bool = True  # Enable Tier 3 RAG-aware routing
     routing_log_decisions: bool = True  # Log all routing decisions
+
+    
 
 settings = Settings()
