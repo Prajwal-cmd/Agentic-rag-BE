@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     semantic_weight: float = 0.7  # Weight for semantic scoring
     
     # NEW: Reranking settings
-    enable_reranking: bool = False  # Enable reranking step
+    enable_reranking: bool = True  # Enable reranking step
     reranking_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"  # Lightweight reranker
     
     # NEW: Query rewriting

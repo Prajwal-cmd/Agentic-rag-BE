@@ -1,51 +1,75 @@
 """
-API-based Embeddings Service - Zero server RAM usage
-Uses Voyage AI's free tier for embeddings
+Local Embeddings Service
+Pattern: Local inference to eliminate API costs and quota constraints
+Source: Sentence-Transformers library (HuggingFace)
+Model: all-MiniLM-L6-v2 (384 dims, 80MB, optimized for semantic similarity)
 """
-import requests
+from sentence_transformers import SentenceTransformer
 from typing import List
 import numpy as np
 from ..utils.logger import setup_logger
 from functools import lru_cache
-import os
+
 
 logger = setup_logger(__name__)
 
 class EmbeddingService:
     """
-    API-based embedding generation using Voyage AI.
-    No local model loading - zero RAM impact.
+    Local embedding generation using sentence-transformers.
+    Runs entirely on CPU/GPU without external API calls.
     """
     
-    def __init__(self, api_key: str = None):
-        """Initialize with Voyage AI API key."""
-        self.api_key = api_key or os.getenv("VOYAGE_API_KEY")
-        self.api_url = "https://api.voyageai.com/v1/embeddings"
-        logger.info("✅ Embedding service initialized (API-based, no local model)")
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        """
+        Initialize embedding model.
+        
+        Args:
+            model_name: HuggingFace model identifier
+        """
+        logger.info(f"Loading embedding model: {model_name}")
+        self.model = SentenceTransformer(model_name)
+        logger.info(f"Model loaded. Embedding dimension: {self.model.get_sentence_embedding_dimension()}")
     
     def embed_text(self, text: str) -> List[float]:
-        """Generate embedding for single text via API."""
-        return self.embed_batch([text])[0]
+        """
+        Generate embedding for single text.
+        
+        Args:
+            text: Input text to embed
+            
+        Returns:
+            384-dimensional embedding vector
+        """
+        embedding = self.model.encode(text, convert_to_numpy=True)
+        return embedding.tolist()
     
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts via API."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generate embeddings for multiple texts (batch processing).
+        More efficient than individual calls.
         
-        payload = {
-            "input": texts,
-            "model": "voyage-2"  # 1024 dimensions, fast
-        }
-        
-        response = requests.post(self.api_url, json=payload, headers=headers)
-        response.raise_for_status()
-        
-        data = response.json()
-        return [item["embedding"] for item in data["data"]]
+        Args:
+            texts: List of texts to embed
+            
+        Returns:
+            List of embedding vectors
+        """
+        embeddings = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=True)
+        return embeddings.tolist()
+    
+    def get_dimension(self) -> int:
+        """Get embedding dimension"""
+        return self.model.get_sentence_embedding_dimension()
 
+# Global instance
+embedding_service = None
 @lru_cache(maxsize=1)
-def get_embedding_service() -> EmbeddingService:
-    """Cached factory for embedding service."""
-    return EmbeddingService()
+def get_embedding_service(model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> EmbeddingService:
+    """
+    Get or create global embedding service instance.
+    Singleton pattern to avoid reloading model.
+    """
+    global embedding_service
+    if embedding_service is None:
+        embedding_service = EmbeddingService(model_name)
+    return embedding_service
