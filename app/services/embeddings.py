@@ -54,21 +54,15 @@ class EmbeddingService:
         """
         return self.embed_documents([text])[0]
     
+    
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """
         Generate embeddings for multiple texts (batch processing).
         Handles up to 2048 texts per request.
-        
-        Args:
-            texts: List of texts to embed (max 2048)
-            
-        Returns:
-            List of embedding vectors
         """
         if not texts:
             return []
         
-        # Jina API supports up to 2048 texts per request
         if len(texts) > 2048:
             logger.warning(f"Batch size {len(texts)} exceeds limit. Splitting into chunks...")
             results = []
@@ -83,28 +77,37 @@ class EmbeddingService:
                 "Authorization": f"Bearer {self.api_key}"
             }
             
+            # ✅ FIXED: Correct parameter names
             payload = {
                 "model": self.model_name,
                 "input": texts,
-                "encoding_type": "float"  # Standard float format
+                "embedding_type": "float",  # ✅ Changed from "encoding_type"
+                "normalized": True  # ✅ Added for better performance
             }
             
             logger.debug(f"Embedding {len(texts)} texts via Jina AI...")
+            
             response = requests.post(
                 self.api_url,
                 headers=headers,
                 json=payload,
-                timeout=30  # 30s timeout
+                timeout=30
             )
             
-            # Handle rate limits gracefully
+            # Handle rate limits
             if response.status_code == 429:
                 logger.error("❌ Jina API rate limit exceeded (1M TPM)")
                 raise Exception("Rate limit exceeded. Wait a moment and try again.")
             
-            response.raise_for_status()
+            # ✅ Better 422 error handling
+            if response.status_code == 422:
+                error_detail = response.json() if response.content else "No details"
+                logger.error(f"❌ Jina API 422 Error: {error_detail}")
+                raise Exception(f"Invalid request format: {error_detail}")
             
+            response.raise_for_status()
             data = response.json()
+            
             embeddings = [item["embedding"] for item in data["data"]]
             
             logger.info(f"✅ Generated {len(embeddings)} embeddings")
@@ -113,10 +116,12 @@ class EmbeddingService:
         except requests.exceptions.Timeout:
             logger.error("❌ Jina API timeout")
             raise Exception("Embedding API timeout. Try again.")
+        
         except requests.exceptions.RequestException as e:
             logger.error(f"❌ Jina API error: {e}")
             raise Exception(f"Embedding API error: {str(e)}")
-    
+
+
     def get_dimension(self) -> int:
         """Get embedding dimension for jina-embeddings-v3"""
         return 1024  # jina-embeddings-v3 default dimension
