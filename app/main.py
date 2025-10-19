@@ -377,10 +377,10 @@ async def chat_stream(request: ChatRequest):
 
             # Send progress: Starting
             yield f"event: progress\ndata: {json.dumps({'status': 'started', 'message': 'Processing your question...'})}\n\n"
-
+            await asyncio.sleep(0)
             # Stage 1: Query routing
             yield f"event: progress\ndata: {json.dumps({'status': 'routing', 'message': 'Analyzing query intent...'})}\n\n"
-
+            await asyncio.sleep(0)
             # Check document availability
             has_documents = check_document_availability(session_id)
 
@@ -410,32 +410,46 @@ async def chat_stream(request: ChatRequest):
                     if route_decision == "vectorstore":
                         if has_documents:
                             yield f"event: progress\ndata: {json.dumps({'status': 'retrieving', 'message': 'Searching your uploaded documents...'})}\n\n"
+                            await asyncio.sleep(0)
                         else:
                             yield f"event: progress\ndata: {json.dumps({'status': 'fallback', 'message': 'No documents found. Searching the web instead...'})}\n\n"
+                            await asyncio.sleep(0)
                     elif route_decision == "web_search":
                         yield f"event: progress\ndata: {json.dumps({'status': 'web_search', 'message': 'Searching the web for current information...'})}\n\n"
+                        await asyncio.sleep(0)
                     elif route_decision == "hybrid":
                         yield f"event: progress\ndata: {json.dumps({'status': 'hybrid', 'message': 'Searching documents and web...'})}\n\n"
+                        await asyncio.sleep(0)
                     elif route_decision == "research":  # NEW
                         yield f"event: progress\ndata: {json.dumps({'status': 'research', 'message': 'Searching academic papers...'})}\n\n"
+                        await asyncio.sleep(0)
                     elif route_decision == "hybrid_research":  # NEW
                         yield f"event: progress\ndata: {json.dumps({'status': 'hybrid_research', 'message': 'Searching documents and research papers...'})}\n\n"
+                        await asyncio.sleep(0)
                     elif route_decision == "hybrid_web_research":  # NEW
                         yield f"event: progress\ndata: {json.dumps({'status': 'hybrid_web_research', 'message': 'Searching research papers and web...'})}\n\n"
+                        await asyncio.sleep(0)
                 elif node_name == "retrieve_documents":
                     yield f"event: progress\ndata: {json.dumps({'status': 'retrieving', 'message': 'Retrieving relevant document chunks...'})}\n\n"
+                    await asyncio.sleep(0)
                 elif node_name == "grade_documents":
                     yield f"event: progress\ndata: {json.dumps({'status': 'grading', 'message': 'Evaluating document relevance...'})}\n\n"
+                    await asyncio.sleep(0)
                 elif node_name == "transform_query":
                     yield f"event: progress\ndata: {json.dumps({'status': 'transforming', 'message': 'Optimizing search query...'})}\n\n"
+                    await asyncio.sleep(0)
                 elif node_name == "web_search":
                     yield f"event: progress\ndata: {json.dumps({'status': 'web_search', 'message': 'Fetching web results...'})}\n\n"
+                    await asyncio.sleep(0)
                 elif node_name == "research_search":  # NEW
                     yield f"event: progress\ndata: {json.dumps({'status': 'research', 'message': 'Fetching academic papers...'})}\n\n"
+                    await asyncio.sleep(0)
                 elif node_name == "hybrid_web_research_generate":  # NEW
                     yield f"event: progress\ndata: {json.dumps({'status': 'hybrid_web_research', 'message': 'Combining research papers and web results...'})}\n\n"
+                    await asyncio.sleep(0)
                 elif node_name == "generate":
                     yield f"event: progress\ndata: {json.dumps({'status': 'generating', 'message': 'Generating response...'})}\n\n"
+                    await asyncio.sleep(0)
 
                 current_node = step
 
