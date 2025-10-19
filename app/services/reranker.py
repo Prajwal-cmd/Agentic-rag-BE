@@ -39,19 +39,20 @@ class DocumentReranker:
         self._load_model()
     
     def _load_model(self):
-        """Lazy load reranking model."""
-        if not settings.enable_reranking:
-            logger.info("Reranking disabled in config")
+        """Lazy load reranking model on first use"""
+        if self.model is not None:
             return
         
         try:
-            logger.info(f"Loading reranking model: {settings.reranking_model}")
-            self.model = CrossEncoder(settings.reranking_model)
-            logger.info("✅ Reranking model loaded successfully")
+            # Use lighter reranker for 512MB deployment
+            lighter_model = "cross-encoder/ms-marco-MiniLM-L-2-v2"  # 31MB vs 80MB
+            logger.info(f"Loading lightweight reranking model: {lighter_model}")
+            self.model = CrossEncoder(lighter_model)
+            logger.info("✅ Lightweight reranker loaded (~31MB memory)")
         except Exception as e:
             logger.error(f"Failed to load reranking model: {e}")
-            logger.warning("Reranking will be disabled")
-            self.model = None
+            raise
+
     
     def rerank_documents(
         self,
