@@ -200,6 +200,17 @@ async def health_check():
     return health_status
 
 
+
+
+@app.get("/warmup")
+async def warmup():
+    """
+    Lightweight endpoint to wake up the server from cold start.
+    Returns immediately with minimal resource usage.
+    """
+    return {"status": "ready", "message": "Server is warmed up"}
+
+
 @app.post("/upload", response_model=UploadResponse)
 async def upload_documents(
     files: List[UploadFile] = File(...),
