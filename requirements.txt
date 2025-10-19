@@ -3,24 +3,24 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.0
 python-multipart==0.0.9
 
-# LangChain & LangGraph - Industry-Standard Orchestration
+# LangChain & LangGraph
 langchain
 langchain-community
 langchain-core
 langgraph
 langchain-groq
 
-# Vector Store - Production-Quality Free Tier
+# Vector Store
 qdrant-client==1.11.0
 
 # API Client for Embeddings (replaces local models)
 requests==2.31.0
 
-# Machine Learning Utils (for router cosine similarity)
-scikit-learn==1.5.2
-numpy>=1.24.0
+# Machine Learning Utils (Python 3.12 compatible)
+scikit-learn>=1.6.0  # ✅ First version supporting Python 3.12
+numpy>=2.0.0  # ✅ Python 3.12 compatible
 
-# Web Search - AI-Optimized Search
+# Web Search
 tavily-python==0.5.0
 
 # Document Processing
@@ -34,14 +34,16 @@ pydantic==2.9.0
 pydantic-settings==2.5.0
 tenacity==8.2.3
 
+# Research APIs
 duckduckgo-search>=6.0.0
 arxiv>=2.1.0
 
 # Table extraction
-camelot-py[cv]>=0.11.0
 pdfplumber>=0.10.0
 openpyxl>=3.1.2
-bibtexparser>=2.0.0
+bibtexparser==1.4.1  # ✅ Stable version (not 2.0.0 beta)
+
+# Use pdfplumber for table extraction instead
 
 
 
