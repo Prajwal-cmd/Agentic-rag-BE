@@ -8,6 +8,8 @@ from io import BytesIO
 from functools import lru_cache
 import os 
 import tempfile
+import asyncio
+
 
 from .config import settings
 from .models.schemas import ChatRequest, ChatResponse, UploadResponse, HealthResponse, Source
@@ -518,7 +520,7 @@ async def chat_stream(request: ChatRequest):
                 chunk = word + (" " if i < len(words) - 1 else "")
                 yield f"event: token\ndata: {json.dumps({'token': chunk})}\n\n"
                 # Small delay for better UX
-                import asyncio
+                
                 await asyncio.sleep(0.02)
 
             # Send completion event with metadata
